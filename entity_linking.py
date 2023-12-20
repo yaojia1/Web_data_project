@@ -12,6 +12,11 @@ pd.set_option('display.max_columns', None)
 ## try with a random entity
 entity = 'Rome'
 
+### for the context dependent features, this should be the text around the entity from the LLM
+sentence = "is rome the capital of italy"
+vocab = re.split("\W", sentence)
+
+
 
 ### fetch possible entities from wikidata
 def fetch_wikidata(params):
@@ -76,14 +81,12 @@ for candidate in range(len(data['search'])):
 
 print("Drop all rows where no wikipedia page is found")
 candidate_df.dropna(subset=['wikipedia_page'], inplace=True)
-print(candidate_df)
-
-
 
 ### context independent features
 def dice_coefficient(entity, candidate):
     overlap = len(''.join(set(entity).intersection(candidate)))
     return 2 * overlap / (len(set(entity)) + len(set(candidate)))
+
 
 def hamming_distance(entity, candidate): 
     distance = 0
@@ -100,11 +103,6 @@ def get_wikipedia_link_count(entity):
     return len(repr(page.backlinks))
 
 
-
-### context dependent features
-sentence = "is rome the capital of italy"
-vocab = re.split("\W", sentence)
-
 def jaccard_similarity(list1, list2):
     list2 = re.split("\W", str(list2))
     intersection = len(list(set(list1).intersection(list2)))
@@ -114,7 +112,6 @@ def jaccard_similarity(list1, list2):
 
 def wiki_summary(descr):
     c = candidate_df.loc[candidate_df['description'] == descr, 'wikipedia_page']
-    print(wikipedia.summary(c))
     return jaccard_similarity(sentence, wikipedia.summary(c))
 
 
@@ -127,37 +124,63 @@ candidate_df['popularity_rate'] = candidate_df['link_count'].apply(lambda x: x /
 candidate_df['jaccard_description'] = candidate_df['description'].apply(lambda x: jaccard_similarity(vocab, x))
 candidate_df['jaccard_summary'] = candidate_df['description'].apply(lambda x: wiki_summary(x))
 
+candidate_df['Avg_weighted_score'] = 0.25 * candidate_df['dice_coeff'] + 0.25 * candidate_df['popularity_rate'] + 0.25 * candidate_df['jaccard_description'] + 0.25 * candidate_df['jaccard_summary']
 
-### To do: the summary does not always match with the wikipedia page, instead of looking for name, look for URL
+max_score = candidate_df['Avg_weighted_score'].max()
+selected_wikipedie_page = candidate_df.loc[candidate_df['Avg_weighted_score'] == max_score, 'wikipedia_page']
+entity_name = selected_wikipedie_page[0]
 
-print(candidate_df)
+def get_wikipedia_link(entity):
+        """
+        Fetch the Wikipedia page for a given entity.
+
+        @param entity: The entity for which to fetch the Wikipedia page.
+        @return: Wikipedia page object or None if an error occurs.
+        """
+        wiki_wiki = wikipediaapi.Wikipedia('MyProjectName (merlin@example.com)', 'en')
+        # page = wiki_wiki.page(entity)
+
+        page_ = wiki_wiki.page(entity)
+        print("Page - Exists: %s" % page_.exists())
+
+        try:
+            return page_.fullurl
+        except Exception as e:
+            print(f"Error fetching Wikipedia page for {entity}: {e}")
+            return None
 
 
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+entity_link = get_wikipedia_link(entity_name)
+print('Selected entity name: {}, wikipedia link: {}'.format(entity_name, entity_link))
 
 
-## TO Do
-def calculate_similarity(entity, candidate_entities):
-    # Tokenize the mention and candidate entities
-    # tokens = word_tokenize(mention.lower())
-    # mention_tokens = ' '.join(tokens)
 
-    # entity_tokens = [' '.join(word_tokenize(entity.lower())) for entity in candidate_entities]
 
-    # Create TF-IDF vectors
-    vectorizer = TfidfVectorizer()
-    vectors = vectorizer.fit_transform([entity] + candidate_entities)
+# from sklearn.feature_extraction.text import TfidfVectorizer
+# from sklearn.metrics.pairwise import cosine_similarity
 
-    # Calculate cosine similarity between the mention and each candidate entity
-    similarities = cosine_similarity(vectors[0], vectors[1:]).flatten()
 
-    # Combine mention and entity pairs with their respective similarities
-    ranked_entities = list(zip(candidate_entities, similarities))
+# ## TO Do
+# def calculate_similarity(entity, candidate_entities):
+#     # Tokenize the mention and candidate entities
+#     # tokens = word_tokenize(mention.lower())
+#     # mention_tokens = ' '.join(tokens)
 
-    # Sort entities based on similarity in descending order
-    ranked_entities.sort(key=lambda x: x[1], reverse=True)
+#     # entity_tokens = [' '.join(word_tokenize(entity.lower())) for entity in candidate_entities]
 
-    return ranked_entities
+#     # Create TF-IDF vectors
+#     vectorizer = TfidfVectorizer()
+#     vectors = vectorizer.fit_transform([entity] + candidate_entities)
+
+#     # Calculate cosine similarity between the mention and each candidate entity
+#     similarities = cosine_similarity(vectors[0], vectors[1:]).flatten()
+
+#     # Combine mention and entity pairs with their respective similarities
+#     ranked_entities = list(zip(candidate_entities, similarities))
+
+#     # Sort entities based on similarity in descending order
+#     ranked_entities.sort(key=lambda x: x[1], reverse=True)
+
+#     return ranked_entities
 
