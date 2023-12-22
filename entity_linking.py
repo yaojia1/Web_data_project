@@ -9,15 +9,6 @@ import sys
 pd.set_option('display.max_columns', None)
 
 
-## try with a random entity
-entity = 'Rome'
-
-### for the context dependent features, this should be the text around the entity from the LLM
-sentence = "is rome the capital of italy"
-vocab = re.split("\W", sentence)
-
-
-
 ### fetch possible entities from wikidata
 def fetch_wikidata(params):
     url = 'https://www.wikidata.org/w/api.php'
@@ -27,17 +18,7 @@ def fetch_wikidata(params):
         return 'There was and error'
     
 
- 
-params = {
-        'action': 'wbsearchentities',
-        'format': 'json',
-        'search': entity,
-        'language': 'en'
-    }
- 
-data = fetch_wikidata(params)
- 
-data = data.json()
+
 
 
 ### find corresponding wikipedia page name from wikidata id
@@ -61,27 +42,6 @@ def wikipage_name(id):
     return sparql.query().convert()
 
 
-### create dataframe with possible entities and features
-candidate_df = pd.DataFrame(columns=['ID', 'label', 'page_id', 'description', 'URL', 'wikipedia_page'])
-for candidate in range(len(data['search'])):
-    candidate_df.loc[candidate, 'ID'] = data['search'][candidate]['id']
-    candidate_df.loc[candidate, 'label'] = data['search'][candidate]['display']['label']['value']
-    candidate_df.loc[candidate, 'page_id'] = data['search'][candidate]['pageid']
-
-    try:
-        candidate_df.loc[candidate, 'description'] = data['search'][candidate]['display']['description']['value']
-    except:
-        candidate_df.loc[candidate, 'description'] = 'not found'
-    candidate_df.loc[candidate, 'URL'] = data['search'][candidate]['url']
-
-    results = wikipage_name(id=candidate_df.loc[candidate, 'ID'])
-    if results['results']['bindings'] == []:
-        continue
-    candidate_df.loc[candidate, 'wikipedia_page'] = results['results']['bindings'][0]['name']['value']
-
-print("Drop all rows where no wikipedia page is found")
-candidate_df.dropna(subset=['wikipedia_page'], inplace=True)
-
 ### context independent features
 def dice_coefficient(entity, candidate):
     overlap = len(''.join(set(entity).intersection(candidate)))
@@ -91,6 +51,7 @@ def dice_coefficient(entity, candidate):
 def hamming_distance(entity, candidate): 
     distance = 0
     L = len(entity)
+    print("hm:",entity,candidate)
     for i in range(L):
         if entity[i] != candidate[i]:
             distance += 1
@@ -110,25 +71,8 @@ def jaccard_similarity(list1, list2):
     return float(intersection) / union
 
 
-def wiki_summary(descr):
-    c = candidate_df.loc[candidate_df['description'] == descr, 'wikipedia_page']
-    return jaccard_similarity(sentence, wikipedia.summary(c))
 
 
-
-
-candidate_df['dice_coeff'] = candidate_df['wikipedia_page'].apply(lambda x: dice_coefficient(entity, x))
-candidate_df['hamming_dist'] = candidate_df['wikipedia_page'].apply(lambda x: hamming_distance(entity, x))
-candidate_df['link_count'] = candidate_df['wikipedia_page'].apply(lambda x: get_wikipedia_link_count(x))
-candidate_df['popularity_rate'] = candidate_df['link_count'].apply(lambda x: x / candidate_df['link_count'].sum())
-candidate_df['jaccard_description'] = candidate_df['description'].apply(lambda x: jaccard_similarity(vocab, x))
-candidate_df['jaccard_summary'] = candidate_df['description'].apply(lambda x: wiki_summary(x))
-
-candidate_df['Avg_weighted_score'] = 0.25 * candidate_df['dice_coeff'] + 0.25 * candidate_df['popularity_rate'] + 0.25 * candidate_df['jaccard_description'] + 0.25 * candidate_df['jaccard_summary']
-
-max_score = candidate_df['Avg_weighted_score'].max()
-selected_wikipedie_page = candidate_df.loc[candidate_df['Avg_weighted_score'] == max_score, 'wikipedia_page']
-entity_name = selected_wikipedie_page[0]
 
 def get_wikipedia_link(entity):
         """
@@ -151,11 +95,72 @@ def get_wikipedia_link(entity):
 
 
 
-entity_link = get_wikipedia_link(entity_name)
-print('Selected entity name: {}, wikipedia link: {}'.format(entity_name, entity_link))
+def entity_linking(entity, sentence):
+    ## try with a random entity
+    # entity = 'Rome'
 
+    ### for the context dependent features, this should be the text around the entity from the LLM
+    # sentence = "is rome the capital of italy"
 
+    vocab = re.split("\W", sentence)
+    params = {
+        'action': 'wbsearchentities',
+        'format': 'json',
+        'search': entity,
+        'language': 'en'
+    }
 
+    data = fetch_wikidata(params)
+    data = data.json()
+
+    ### create dataframe with possible entities and features
+    candidate_df = pd.DataFrame(columns=['ID', 'label', 'page_id', 'description', 'URL', 'wikipedia_page'])
+
+    def wiki_summary(descr):
+        c = candidate_df.loc[candidate_df['description'] == descr, 'wikipedia_page']
+        # print(descr,c)
+        return jaccard_similarity(sentence, wikipedia.summary(c, auto_suggest=False))
+
+    def hamming_distance(sent1, sent2):
+        return sum(c1 != c2 for c1, c2 in zip(sent1, sent2))
+
+    for candidate in range(len(data['search'])):
+        candidate_df.loc[candidate, 'ID'] = data['search'][candidate]['id']
+        candidate_df.loc[candidate, 'label'] = data['search'][candidate]['display']['label']['value']
+        candidate_df.loc[candidate, 'page_id'] = data['search'][candidate]['pageid']
+
+        try:
+            candidate_df.loc[candidate, 'description'] = data['search'][candidate]['display']['description']['value']
+        except:
+            candidate_df.loc[candidate, 'description'] = 'not found'
+        candidate_df.loc[candidate, 'URL'] = data['search'][candidate]['url']
+
+        results = wikipage_name(id=candidate_df.loc[candidate, 'ID'])
+        if results['results']['bindings'] == []:
+            continue
+        candidate_df.loc[candidate, 'wikipedia_page'] = results['results']['bindings'][0]['name']['value']
+
+    # print("Drop all rows where no wikipedia page is found")
+    candidate_df.dropna(subset=['wikipedia_page'], inplace=True)
+
+    candidate_df['dice_coeff'] = candidate_df['wikipedia_page'].apply(lambda x: dice_coefficient(entity, x))
+    candidate_df['hamming_dist'] = candidate_df['wikipedia_page'].apply(lambda x: hamming_distance(entity, x))
+    candidate_df['link_count'] = candidate_df['wikipedia_page'].apply(lambda x: get_wikipedia_link_count(x))
+    candidate_df['popularity_rate'] = candidate_df['link_count'].apply(lambda x: x / candidate_df['link_count'].sum())
+    candidate_df['jaccard_description'] = candidate_df['description'].apply(lambda x: jaccard_similarity(vocab, x))
+    candidate_df['jaccard_summary'] = candidate_df['description'].apply(lambda x: wiki_summary(x))
+
+    candidate_df['Avg_weighted_score'] = 0.25 * candidate_df['dice_coeff'] + 0.25 * candidate_df[
+        'popularity_rate'] + 0.25 * candidate_df['jaccard_description'] + 0.25 * candidate_df['jaccard_summary']
+
+    max_score = candidate_df['Avg_weighted_score'].max()
+    selected_wikipedie_page = candidate_df.loc[candidate_df['Avg_weighted_score'] == max_score, 'wikipedia_page']
+    entity_name = selected_wikipedie_page[0]
+
+    entity_link = get_wikipedia_link(entity_name)
+    # print('Selected entity name: {}, wikipedia link: {}'.format(entity_name, entity_link))
+
+    return entity_link
 
 # from sklearn.feature_extraction.text import TfidfVectorizer
 # from sklearn.metrics.pairwise import cosine_similarity
