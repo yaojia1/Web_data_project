@@ -85,7 +85,7 @@ def get_wikipedia_link(entity):
         # page = wiki_wiki.page(entity)
 
         page_ = wiki_wiki.page(entity)
-        print("Page - Exists: %s" % page_.exists())
+        # print("Page - Exists: %s" % page_.exists())
 
         try:
             return page_.fullurl
@@ -156,11 +156,11 @@ def entity_linking(entity, sentence):
     max_score = candidate_df['Avg_weighted_score'].max()
     selected_wikipedie_page = candidate_df.loc[candidate_df['Avg_weighted_score'] == max_score, 'wikipedia_page']
     entity_name = selected_wikipedie_page[0]
-
+    # print(candidate_df)
     entity_link = get_wikipedia_link(entity_name)
     # print('Selected entity name: {}, wikipedia link: {}'.format(entity_name, entity_link))
 
-    return entity_link
+    return entity_name, entity_link
 
 # from sklearn.feature_extraction.text import TfidfVectorizer
 # from sklearn.metrics.pairwise import cosine_similarity
