@@ -1,11 +1,13 @@
 from __future__ import unicode_literals
 import nltk
-
+"""
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 nltk.download('maxent_ne_chunker')
 nltk.download('words')
 nltk.download('stopwords')
+nltk.download('wordnet')
+"""
 from nltk.tree import Tree
 import nltk
 import re
@@ -14,13 +16,14 @@ from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
 import wikipedia
-import pickle
+
 import nltk
 from sklearn.feature_extraction.text import TfidfVectorizer
+import pickle
 
-nltk.download('wordnet')
 
 cache_dict = {}
+
 
 
 # functions to remove noise
@@ -49,7 +52,24 @@ def remove_noise(text):
     text = remove_char(text)
     return text
 
-
+def lemm_words(text):
+    # sentences = nltk.sent_tokenize(text)
+    ps = PorterStemmer()
+    stemmer_ss = SnowballStemmer("english")
+    lemmatizer = WordNetLemmatizer()
+    # Lemmatization
+    token_words = text
+    lt = []
+    for word in token_words:
+        word = str(word)
+        if word == word.title():
+            # lt.append(lemmatizer.lemmatize(word).capitalize())
+            lt.append(word.capitalize())
+        elif word.isupper():
+            lt.append(lemmatizer.lemmatize(word).upper())
+        else:
+            lt.append(lemmatizer.lemmatize(word))
+    return " ".join(lt)
 def stem_words(text):
     ps = PorterStemmer()
     stemmer_ss = SnowballStemmer("english")
@@ -118,7 +138,8 @@ def pre_process_sentence(sentence):
     # Pre process the sentence
     sentence = remove_noise(sentence)
     sentence = remove_stopwords(sentence)
-    sentence = stem_words(sentence)
+    sentence = lemm_words(sentence)  #stem_words(sentence)
+    print(sentence)
 
     # stop_words = stopwords.words('english')
     sentence = nltk.word_tokenize(sentence)
@@ -164,6 +185,7 @@ def get_entity_wikipage_cached(entity):
 def get_continuous_chunks(chunk):
     continuous_chunk = []
     current_chunk = []
+    all_chunk = []
     counter = 0
 
     for i in chunk:
@@ -171,6 +193,8 @@ def get_continuous_chunks(chunk):
         # Named entity will be in form of a tree
         if type(i) == Tree:
             current_chunk.append(" ".join([token for token, pos in i.leaves()]))
+            print("token ".join([token+pos for token, pos in i]))
+            #all_chunk.append(())
 
         else:
             # discontiguous, append to known contiguous chunks.
@@ -198,12 +222,11 @@ def get_continuous_chunks(chunk):
 # Extract the named entities
 def extract_named_entities(sentence):
     processed_sentence = pre_process_sentence(sentence)
-
     named_entity_chunk = nltk.ne_chunk(processed_sentence, binary=True)
+    print(named_entity_chunk)
     list_of_named_entities = get_continuous_chunks(named_entity_chunk)
-    non_empty_values = [value for value in list_of_named_entities if value]
-    # print(non_empty_values)
-
+    non_empty_values = [value for value in named_entity_chunk if value not in list_of_named_entities]
+    print(non_empty_values)
     return list_of_named_entities
 
 
@@ -286,9 +309,13 @@ f = open('ntlk_CheckQuestion.pickle', 'rb')
 
 def is_ques_using_nltk(ques):
     ListQuestion = [ques]
+    print(ques)
     question = vectorizer.transform(ListQuestion)
+    print(question)
+    f = open('./ntlk_CheckQuestion.pickle', 'rb')
     classifier = pickle.load(f)
     question_type = classifier.predict(question)
+    print(question_type)
     return question_type in question_types
 
 
@@ -296,17 +323,87 @@ question_pattern = ["do i", "do you", "what", "who", "is it", "why", "would you"
                     "are there", "is it so", "is this true", "to know", "is that true", "are we", "am i",
                     "question is", "tell me more", "can i", "can we", "tell me", "can you explain",
                     "question", "answer", "questions", "answers", "ask"]
+open_question_partten = ["what", "who", "whose", "why", "how", "which", "when", "where"]
 
 helping_verbs = ["is", "am", "can", "are", "do", "does"]
+
+
+def wh_question(question):
+    is_ques = False
+    for pattern in open_question_partten:  # question_pattern:
+        is_ques = pattern in question
+        if is_ques:
+            break
+    return is_ques
+
+def wh_answer(question, answer, q_entities):
+    #if wh_question(question):
+    # named_entities1, nonq = extract_named_entities(question, type="all")
+    #sentence_arr = answer.split(".")
+    #for sent in sentence_arr:
+    # named_entities2, nona = extract_named_entities(answer, type="all")
+    sentence = remove_noise(question)
+    sentence = remove_stopwords(sentence)
+    sentence = lemm_words(sentence)  # stem_words(sentence)
+    processed_sentence = sentence.lower().strip()
+    print("pre", processed_sentence)
+    #named_entity_chunk = nltk.ne_chunk(pre_process_sentence(processed_sentence), binary=True)
+    #non_empty_values = [value for value in a_entities if value not in q_entities]
+    #print(named_entity_chunk, non_empty_values)
+    statement = ""
+    sentence = nltk.sent_tokenize(processed_sentence)
+    if question in answer:
+        answer = answer[len(question):]
+        print("ans:",answer)
+    print(sentence)
+    if len(q_entities) == 1:
+        statement = statement + q_entities[0] + " "
+        for words in sentence:
+            for word in words.split():
+                if word not in question_pattern and word not in q_entities[0].lower().split():
+                    statement = statement + word + " "
+                    print("w:", word)
+    else:
+        for words in sentence:
+            for word in words.split():
+                if word not in question_pattern:
+                    statement = statement + word + " "
+                    print("w:", word)
+    print(statement)
+    statement = statement+answer
+    print("statement:", statement)
+    return statement
+
+def choose_ent(q_entities, a_entities, desp, ascore):
+    score = [1 - i / len(a_entities) for i in range(len(a_entities))]
+    score = list(score)
+    for i in range(len(a_entities)):
+        score[i] += ascore[i][3]
+        for dsp in desp:
+            if a_entities[i] in dsp[2]:
+                score[i] += 1
+            for k in range(a_entities):
+                if q_entities[0] == a_entities[k]:
+                    score += (1 - abs(k - i) / len(a_entities))
+    max1 = -1
+    c = 0
+    for i in range(len(a_entities)):
+        if score[i] > max1:
+            max1 = score[i]
+            c = i
+    return c
+    #sentence_arr = answer.split(".")
+    # for sent in sentence_arr:
+    # named_entities2, nona = extract_named_entities(answer, type="all")
 
 
 # check with custom pipeline if still this is a question mark it as a question
 def is_question(question):
     question = question.lower().strip()
-    if not is_ques_using_nltk(question):
+    if not False:#is_ques_using_nltk(question):
         is_ques = False
         # check if any of pattern exist in sentence
-        for pattern in question_pattern:
+        for pattern in open_question_partten:  # question_pattern:
             is_ques = pattern in question
             if is_ques:
                 break
@@ -326,17 +423,60 @@ def is_question(question):
         return True
 
 
-# Check whether the user input a question or statement
-print("Is this a question: " + str(is_question(user_input.lower().strip())))
+def fact_checking(user_input, fact, q_ents, e_ents, dep_text):
+    # Append random text as the final value
+    ran = "ran"
+    # fact = "Amsterdam is the capital of Netherlands" # LLaMa output
+    # user_input = "Where is San Francisco?"  # "Is Amsterdam capital of Netherlands?" # Question
+    if user_input in fact[:len(user_input)]:
+        fact = fact[len(user_input):].strip()
+        print("answer:", fact)
+    if wh_question(user_input.lower().strip()):
+        # Check the negation of the LLAMA returned text
+        fact = wh_answer(user_input, fact, q_ents)
 
-# Check the negation of the LLAMA returned text
-f = open('ntlk_NegationClassifier_Blob.pickle', 'rb')
-classifier = pickle.load(f)
 
-# Check whether input is a question or answer
+    nltk.download('nps_chat')
+    posts = nltk.corpus.nps_chat.xml_posts()
 
-# When classifying text, features are extracted automatically
-print('True' if classifier.classify(fact) == 'pos' else 'False')
+    posts_text = [post.text for post in posts]
 
-estimated_val = float(check_fact(fact + " " + ran))
-print('Correct' if estimated_val == 1 else 'Incorrect')
+    # divide train and test in 80 20
+    train_text = posts_text[:int(len(posts_text) * 0.8)]
+    # print(posts_text)
+
+
+
+    # Check whether the user input a question or statement
+    is_q = str(is_question(user_input.lower().strip()))
+    print("Is this a question: " + is_q)
+    f = open('ntlk_NegationClassifier_Blob.pickle', 'rb')
+    classifier = pickle.load(f)
+
+    # Check whether input is a question or answer
+    # When classifying text, features are extracted automatically
+    q_type = classifier.classify(fact)
+    print('True' if q_type == 'pos' else 'False')
+    estimated_val2 = float(check_fact(fact + " " + ran))
+    print('a Correct' if estimated_val2 == 1 else 'a Incorrect')
+    if is_q == 'yes':
+        # statement yes/no
+        estimated_val = float(check_fact(user_input + " " + ran))
+        print('q Correct' if estimated_val == 1 else 'q Incorrect')
+
+        if estimated_val == estimated_val2 or estimated_val2 == 1:
+            return 'yes' if q_type == 'pos' else 'no', True
+        else:
+            return 'yes' if q_type == 'pos' else 'no', False
+    else:
+        return choose_ent(q_ents, e_ents, dep_text), True if estimated_val2 == 1 else False
+
+
+
+
+
+
+
+
+
+

@@ -88,7 +88,7 @@ def get_wikipedia_link(entity):
         # print("Page - Exists: %s" % page_.exists())
 
         try:
-            return page_.fullurl
+            return page_.fullurl, page_.summary[0:60]
         except Exception as e:
             print(f"Error fetching Wikipedia page for {entity}: {e}")
             return None
@@ -157,10 +157,15 @@ def entity_linking(entity, sentence):
     selected_wikipedie_page = candidate_df.loc[candidate_df['Avg_weighted_score'] == max_score, 'wikipedia_page']
     entity_name = selected_wikipedie_page[0]
     # print(candidate_df)
-    entity_link = get_wikipedia_link(entity_name)
+    entity_link, summary = get_wikipedia_link(entity_name)
+    print(candidate_df)
+    # print(max_score)
     # print('Selected entity name: {}, wikipedia link: {}'.format(entity_name, entity_link))
 
-    return entity_name, entity_link
+    dscr = candidate_df.loc[candidate_df['Avg_weighted_score'] == max_score,  'description']
+    print(dscr[1])
+    print(type(dscr))
+    return entity_name, entity_link, summary+dscr.to_string(), max_score
 
 # from sklearn.feature_extraction.text import TfidfVectorizer
 # from sklearn.metrics.pairwise import cosine_similarity
