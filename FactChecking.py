@@ -1,13 +1,12 @@
 from __future__ import unicode_literals
 import nltk
-"""
+
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 nltk.download('maxent_ne_chunker')
 nltk.download('words')
 nltk.download('stopwords')
 nltk.download('wordnet')
-"""
 from nltk.tree import Tree
 import nltk
 import re
