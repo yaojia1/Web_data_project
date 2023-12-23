@@ -119,19 +119,17 @@ def entity_linking(entity, sentence):
 
     def wiki_summary(descr):
         c = candidate_df.loc[candidate_df['description'] == descr, 'wikipedia_page']
-        print("summary?", descr, "ent", c, c.all(), type(c))
         try:
             return jaccard_similarity(sentence, wikipedia.summary(c, auto_suggest=False))
         except Exception as e:
-            print(f"Error fetching Wikipedia summary for {c}: {e}")
+            # print(f"Error fetching Wikipedia summary for {c}: {e}")
             for ee in c:
-                print("what", ee)
+                #  print("what", ee)
                 try:
-                    return jaccard_similarity(c['Name'], wikipedia.summary(ee, auto_suggest=False))
+                    return jaccard_similarity(sentence, wikipedia.summary(ee, auto_suggest=False))
                 except  Exception as e:
-                    print(f"Error fetching Wikipedia summary for {ee}: {e}")
-
-                return jaccard_similarity(c, wikipedia.summary(c))
+                      print(f"Error fetching Wikipedia summary for {ee}: {e}")
+                return jaccard_similarity(sentence, wikipedia.summary(c))
 
 
 
