@@ -47,6 +47,10 @@ def remove_char(text):
 
 # remove noise(combine above functions)
 def remove_noise(text):
+    text = text.replace("Question:", "")
+    text = text.replace("Question", "")
+    text = text.replace("Answer:", "")
+    text = text.replace("Answer", "")
     text = clean_html(text)
     text = remove_brackets(text)
     text = remove_char(text)
@@ -132,6 +136,13 @@ def remove_stopwords(text):
 def join_back(text):
     return ' '.join(text)
 
+def pre_only_sentence(sentence):
+    # Pre process the sentence
+    sentence = remove_noise(sentence)
+    sentence = remove_stopwords(sentence)
+    sentence = lemm_words(sentence)  # stem_words(sentence)
+    print(sentence)
+    return sentence
 
 def pre_process_sentence(sentence):
     #
@@ -149,7 +160,6 @@ def pre_process_sentence(sentence):
     #         final_tokens.append(each)
     sentence = nltk.pos_tag(sentence)
     # print(sentence)
-
     return sentence
 
 
@@ -342,11 +352,8 @@ def wh_answer(question, answer, q_entities):
     #sentence_arr = answer.split(".")
     #for sent in sentence_arr:
     # named_entities2, nona = extract_named_entities(answer, type="all")
-    sentence = remove_noise(question)
-    sentence = remove_stopwords(sentence)
-    sentence = lemm_words(sentence)  # stem_words(sentence)
+    sentence = pre_only_sentence(question)
     processed_sentence = sentence.lower().strip()
-    print("pre", processed_sentence)
     #named_entity_chunk = nltk.ne_chunk(pre_process_sentence(processed_sentence), binary=True)
     #non_empty_values = [value for value in a_entities if value not in q_entities]
     #print(named_entity_chunk, non_empty_values)
@@ -382,15 +389,16 @@ def choose_ent(q_entities, a_entities, desp, ascore):
         for dsp in desp:
             if a_entities[i] in dsp[2]:
                 score[i] += 1
-            for k in range(a_entities):
+            for k in range(len(a_entities)):
                 if q_entities[0] == a_entities[k]:
-                    score += (1 - abs(k - i) / len(a_entities))
+                    score[i] += (1 - abs(k - i) / len(a_entities))
     max1 = -1
     c = 0
     for i in range(len(a_entities)):
         if score[i] > max1:
             max1 = score[i]
             c = i
+    print(score)
     return c
     #sentence_arr = answer.split(".")
     # for sent in sentence_arr:
@@ -423,7 +431,7 @@ def is_question(question):
         return True
 
 
-def fact_checking(user_input, fact, q_ents, e_ents, dep_text):
+def fact_checking(user_input, fact, q_ents, e_ents, dep_text, a_score):
     # Append random text as the final value
     ran = "ran"
     # fact = "Amsterdam is the capital of Netherlands" # LLaMa output
@@ -469,7 +477,7 @@ def fact_checking(user_input, fact, q_ents, e_ents, dep_text):
         else:
             return 'yes' if q_type == 'pos' else 'no', False
     else:
-        return choose_ent(q_ents, e_ents, dep_text), True if estimated_val2 == 1 else False
+        return choose_ent(q_ents, e_ents, dep_text, a_score), True if estimated_val2 == 1 else False
 
 
 

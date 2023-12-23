@@ -5,6 +5,7 @@ import requests
 import wikipediaapi
 import re 
 import sys
+import swifter
 
 pd.set_option('display.max_columns', None)
 
@@ -90,7 +91,7 @@ def get_wikipedia_link(entity):
         try:
             return page_.fullurl, page_.summary[0:60]
         except Exception as e:
-            print(f"Error fetching Wikipedia page for {entity}: {e}")
+            print(f"Error fetching Wikipedia page for {entity}::: {e}")
             return None
 
 
@@ -118,8 +119,23 @@ def entity_linking(entity, sentence):
 
     def wiki_summary(descr):
         c = candidate_df.loc[candidate_df['description'] == descr, 'wikipedia_page']
-        # print(descr,c)
-        return jaccard_similarity(sentence, wikipedia.summary(c, auto_suggest=False))
+        print("summary?", descr, "ent", c, c.all(), type(c))
+        try:
+            return jaccard_similarity(sentence, wikipedia.summary(c, auto_suggest=False))
+        except Exception as e:
+            print(f"Error fetching Wikipedia summary for {c}: {e}")
+            for ee in c:
+                print("what", ee)
+                try:
+                    return jaccard_similarity(c['Name'], wikipedia.summary(ee, auto_suggest=False))
+                except  Exception as e:
+                    print(f"Error fetching Wikipedia summary for {ee}: {e}")
+
+                return jaccard_similarity(c, wikipedia.summary(c))
+
+
+
+        #return jaccard_similarity(sentence, wikipedia.summary(c, auto_suggest=False)) # , auto_suggest=False
 
     def hamming_distance(sent1, sent2):
         return sum(c1 != c2 for c1, c2 in zip(sent1, sent2))
@@ -143,28 +159,38 @@ def entity_linking(entity, sentence):
     # print("Drop all rows where no wikipedia page is found")
     candidate_df.dropna(subset=['wikipedia_page'], inplace=True)
 
-    candidate_df['dice_coeff'] = candidate_df['wikipedia_page'].apply(lambda x: dice_coefficient(entity, x))
-    candidate_df['hamming_dist'] = candidate_df['wikipedia_page'].apply(lambda x: hamming_distance(entity, x))
-    candidate_df['link_count'] = candidate_df['wikipedia_page'].apply(lambda x: get_wikipedia_link_count(x))
-    candidate_df['popularity_rate'] = candidate_df['link_count'].apply(lambda x: x / candidate_df['link_count'].sum())
-    candidate_df['jaccard_description'] = candidate_df['description'].apply(lambda x: jaccard_similarity(vocab, x))
-    candidate_df['jaccard_summary'] = candidate_df['description'].apply(lambda x: wiki_summary(x))
+    candidate_df['dice_coeff'] = candidate_df['wikipedia_page'].swifter.apply(lambda x: dice_coefficient(entity, x))
+    candidate_df['hamming_dist'] = candidate_df['wikipedia_page'].swifter.apply(lambda x: hamming_distance(entity, x))
+    candidate_df['link_count'] = candidate_df['wikipedia_page'].swifter.apply(lambda x: get_wikipedia_link_count(x))
+    candidate_df['popularity_rate'] = candidate_df['link_count'].swifter.apply(lambda x: x / candidate_df['link_count'].sum())
+    candidate_df['jaccard_description'] = candidate_df['description'].swifter.apply(lambda x: jaccard_similarity(vocab, x))
+    candidate_df['jaccard_summary'] = candidate_df['description'].swifter.apply(lambda x: wiki_summary(x))
 
     candidate_df['Avg_weighted_score'] = 0.25 * candidate_df['dice_coeff'] + 0.25 * candidate_df[
         'popularity_rate'] + 0.25 * candidate_df['jaccard_description'] + 0.25 * candidate_df['jaccard_summary']
 
     max_score = candidate_df['Avg_weighted_score'].max()
     selected_wikipedie_page = candidate_df.loc[candidate_df['Avg_weighted_score'] == max_score, 'wikipedia_page']
-    entity_name = selected_wikipedie_page[0]
-    # print(candidate_df)
+
+    try:
+        print("entity:", selected_wikipedie_page)
+        entity_name = selected_wikipedie_page[0]
+    except Exception as e:
+        print(f"Error fetching Wikipedia entity name for {selected_wikipedie_page}: {e}")
+        try:
+            print("entity:", selected_wikipedie_page)
+            print(candidate_df)
+            entity_name = selected_wikipedie_page
+        except  Exception as e:
+            print(f"Error fetching Wikipedia summary for {selected_wikipedie_page[0]}: {e}")
+    #print(entity_name)
     entity_link, summary = get_wikipedia_link(entity_name)
-    print(candidate_df)
+    #print(candidate_df)
     # print(max_score)
     # print('Selected entity name: {}, wikipedia link: {}'.format(entity_name, entity_link))
 
     dscr = candidate_df.loc[candidate_df['Avg_weighted_score'] == max_score,  'description']
-    print(dscr[1])
-    print(type(dscr))
+    #print(type(dscr))
     return entity_name, entity_link, summary+dscr.to_string(), max_score
 
 # from sklearn.feature_extraction.text import TfidfVectorizer
