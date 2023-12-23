@@ -1,21 +1,12 @@
 from __future__ import unicode_literals
 import nltk
-
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('maxent_ne_chunker')
-nltk.download('words')
-nltk.download('stopwords')
-nltk.download('wordnet')
 from nltk.tree import Tree
-import nltk
 import re
 from nltk.stem import SnowballStemmer
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
 import wikipedia
-
 import nltk
 from sklearn.feature_extraction.text import TfidfVectorizer
 import pickle
@@ -296,7 +287,7 @@ ran = "ran"
 fact = "Amsterdam is the capital of Netherlands" # LLaMa output
 user_input = "Is Amsterdam capital of Netherlands?" # Question
 
-nltk.download('nps_chat')
+
 posts = nltk.corpus.nps_chat.xml_posts()
 
 posts_text = [post.text for post in posts]
@@ -441,9 +432,6 @@ def fact_checking(user_input, fact, q_ents, e_ents, dep_text, a_score):
     if wh_question(user_input.lower().strip()):
         # Check the negation of the LLAMA returned text
         fact = wh_answer(user_input, fact, q_ents)
-
-
-    nltk.download('nps_chat')
     posts = nltk.corpus.nps_chat.xml_posts()
 
     posts_text = [post.text for post in posts]

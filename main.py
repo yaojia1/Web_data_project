@@ -1,19 +1,24 @@
 import sys
 from entity_linking import *
 from FactChecking import *
-
+from llama_cpp import Llama
 model_path = "../models/llama-2-7b.Q4_K_M.gguf"
-
+nltk.download('punkt')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('maxent_ne_chunker')
+nltk.download('words')
+nltk.download('stopwords')
+nltk.download('wordnet')
+nltk.download('nps_chat')
+nltk.download('nps_chat')
 
 # llm = Llama(model_path=model_path, verbose=False)
-# from llama_cpp import Llama
+
 # If you want to use larger models...
 # model_path = "models/llama-2-13b.Q4_K_M.gguf"
 # All models are available at https://huggingface.co/TheBloke. Make sure you download the ones in the GGUF format
 
 class entity_extraction():
-    # def sim_score(self, string1, string2):
-
     def linking(self, entities, sents):
         entities_link = list()
         print(entities, sents)
@@ -47,30 +52,15 @@ class entity_extraction():
         print(entities_tags)
         return entities, tags
 
-    def enety_recognition(self):
 
-        pass
-
-    def disambiguation(self):
-        pass
-
-    def answer_extraction(self):
-
-        pass
-
-    def fact_checking(self):
-        pass
-
-    def main(self):
-        pass
-
-ans4 = "Where is San Francisco? 2010-05-03 19:14\n everyone says it's in the Bay Area but i have never heard of it. i " \
-       "am driving from Los Angeles to San "
 
 question = "Where is San Francisco?"
 
+ans3 = 'What is the capital of Italy? 1067\n nobody knew. The city was now so large it could be divided into five ' \
+       'different quarters, each with its own laws and customs. Each quarter was ruled by a warrior- '
+
 if __name__ == '__main__':
-    debug = True
+    debug = False
     input_file = "example_input.txt"
     output_file = "output.txt"
     print(sys.argv)
@@ -84,11 +74,8 @@ if __name__ == '__main__':
     q = entity_extraction()
     if not debug:
         llm = Llama(model_path=model_path, verbose=False)
-    while True:
+    for line in question_file.readlines():
         count += 1
-
-        # Get next line from file
-        line = question_file.readline()
         # if line is empty
         # end of file is reached
         if not line or line == None or len(line) == 0:
@@ -100,7 +87,7 @@ if __name__ == '__main__':
         print("Asking the question \"%s\" to %s (wait, it can take some time...)" % (question, model_path))
 
         if debug:
-            answer = ans4
+            answer = ans3
         else:
             output = llm(
                 question,  # Prompt
