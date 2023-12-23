@@ -1,7 +1,7 @@
 import sys
 from entity_linking import *
 from FactChecking import *
-from llama_cpp import Llama
+
 model_path = "models/llama-2-7b.Q4_K_M.gguf"
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
@@ -25,6 +25,8 @@ class entity_extraction():
         for entity in entities:
             print("linking ---", entity, sents)
             ent, lnk, dsp, score = entity_linking(entity, sents)
+            if ent == None:
+                continue
             entities_link.append([ent, lnk, dsp, score])
             print(entity, ":", entities_link[-1], entities_link[-1][2])
         return entities_link
@@ -44,20 +46,26 @@ class entity_extraction():
         sentence = nltk.sent_tokenize(sentence)
         for sent in sentence:
             for chunk in nltk.ne_chunk(nltk.pos_tag(nltk.word_tokenize(sent)), binary=False):
+                enti = ''
                 if hasattr(chunk, 'label'):
-                    entities.append(' '.join(c[0] for c in chunk))
-                    tags.append(chunk.label())
+                    enti = ' '.join(c[0] for c in chunk)
+                    if enti not in entities:
+                        entities.append(' '.join(c[0] for c in chunk))
+                        tags.append(chunk.label())
+                else:
+                    print(chunk, ": pass")
         entities_tags = list(set(zip(entities, tags)))
+        print(sentence)
         print(entities)
         print(entities_tags)
         return entities, tags
 
 
 
-question = "Where is San Francisco?"
+question = "Question: Who is the director of Pulp Fiction? Answer:"
 
-ans3 = 'What is the capital of Italy? 1067\n nobody knew. The city was now so large it could be divided into five ' \
-       'different quarters, each with its own laws and customs. Each quarter was ruled by a warrior- '
+ans3 = "Question: Who is the director of Pulp Fiction? Answer: Quentin Tarantino. literally one of the most " \
+       "influential films of all time. Quentin Tarantino's PULP FICTION (1994) is a cult classic and a "
 
 if __name__ == '__main__':
     debug = False
@@ -73,8 +81,10 @@ if __name__ == '__main__':
 
     q = entity_extraction()
     if not debug:
+        from llama_cpp import Llama
         llm = Llama(model_path=model_path, verbose=False)
     for line in question_file.readlines():
+        answer_join = False
         count += 1
         # if line is empty
         # end of file is reached
@@ -82,6 +92,8 @@ if __name__ == '__main__':
             break
         print("Line{}: {}".format(count, line.strip().replace('\n', '').replace('\r', '')))
         line = line.strip().replace('\n', '').replace('\r', '')
+        if len(line) < 2:
+            continue
         q_id = line.split('\t')[0]
         question = line.split('\t')[1]
         print("Asking the question \"%s\" to %s (wait, it can take some time...)" % (question, model_path))
@@ -91,26 +103,35 @@ if __name__ == '__main__':
         else:
             output = llm(
                 question,  # Prompt
-                max_tokens=32,  # Generate up to 32 tokens
+                # max_tokens=42,  # Generate up to 32 tokens
                 stop=["Q:", "\n"],  # Stop generating just before the model would generate a new question
                 echo=True  # Echo the prompt back in the output
             )
             print("Here is the output")
-            print(output['choices']['text'])
-            answer = output['choices']['text']
+            print(output['choices'])
+            answer = output['choices'][0]['text']
 
         q_links, question_entites = q.run_question(question)
+        if question in answer:
+            old_answer = answer
+            answer = answer.replace(question, "")
+            answer_join = True
         a_links, answer_entities = q.run_question(answer)
-
         a1, a2 = fact_checking(question, answer, question_entites, answer_entities, q_links, a_links)
         if type(a1) == int:
             result1 = a_links[a1][1]
         else:
             result1 = a1
         result2 = 'correct' if a2 else 'incorrect'
-        with open(output_file, 'w+', encoding='utf-8') as the_file:
-            the_file.write(q_id + "\t" + "R\"" + answer + "\"\n")
+        with open(output_file, 'a+', encoding='utf-8') as the_file:
+            the_file.write(q_id + "\t" + "R\"" + old_answer + "\"\n")
             the_file.write(q_id + "\t" + "A\"" + str(result1) + "\"\n")
             the_file.write(q_id + "\t" + "C\"" + str(result2) + "\"\n")
+            if answer_join:
+                for ent in q_links:
+                    the_file.write(q_id + "\t" + "E\"" + str(ent[1]) + "\"\n")
+                for ent in a_links:
+                    if ent not in q_links:
+                        the_file.write(q_id + "\t" + "E\"" + str(ent[1]) + "\"\n")
             for ent in a_links:
                 the_file.write(q_id + "\t" + "E\"" + str(ent[1]) + "\"\n")

@@ -92,7 +92,7 @@ def get_wikipedia_link(entity):
             return page_.fullurl, page_.summary[0:60]
         except Exception as e:
             print(f"Error fetching Wikipedia page for {entity}::: {e}")
-            return None
+            return None, None
 
 
 
@@ -181,8 +181,11 @@ def entity_linking(entity, sentence):
             entity_name = selected_wikipedie_page
         except  Exception as e:
             print(f"Error fetching Wikipedia summary for {selected_wikipedie_page[0]}: {e}")
+            return None, None, None, None
     #print(entity_name)
     entity_link, summary = get_wikipedia_link(entity_name)
+    if entity_link == None:
+        return None, None, None, None
     #print(candidate_df)
     # print(max_score)
     # print('Selected entity name: {}, wikipedia link: {}'.format(entity_name, entity_link))

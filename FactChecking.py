@@ -39,8 +39,8 @@ def remove_char(text):
 def remove_noise(text):
     text = text.replace("Question:", "")
     text = text.replace("Question", "")
-    text = text.replace("Answer:", "")
-    text = text.replace("Answer", "")
+    text = text.replace("Answer:", ".")
+    text = text.replace("Answer", ".")
     text = clean_html(text)
     text = remove_brackets(text)
     text = remove_char(text)
@@ -240,11 +240,13 @@ def check_fact(fact):
     unique_entities = []
 
     for entity in named_entities:
-
-        if not wikipedia_urls.__contains__(get_entity_wikipage_cached(entity).url):
-            wikipedia_urls.append(get_entity_wikipage_cached(entity).url)
-            named_entities_with_pages[entity] = get_entity_wikipage_cached(entity)
-            unique_entities.append(entity)
+        try:
+            if not wikipedia_urls.__contains__(get_entity_wikipage_cached(entity).url):
+                wikipedia_urls.append(get_entity_wikipage_cached(entity).url)
+                named_entities_with_pages[entity] = get_entity_wikipage_cached(entity)
+                unique_entities.append(entity)
+        except :
+            print("error")
 
     num_of_common_occurences = 0
     total_num_of_occurences = 0
@@ -429,7 +431,7 @@ def fact_checking(user_input, fact, q_ents, e_ents, dep_text, a_score):
     if user_input in fact[:len(user_input)]:
         fact = fact[len(user_input):].strip()
         print("answer:", fact)
-    if wh_question(user_input.lower().strip()):
+    if wh_question(user_input.lower().strip()) and len(e_ents)>0:
         # Check the negation of the LLAMA returned text
         fact = wh_answer(user_input, fact, q_ents)
     posts = nltk.corpus.nps_chat.xml_posts()
@@ -452,19 +454,21 @@ def fact_checking(user_input, fact, q_ents, e_ents, dep_text, a_score):
     # When classifying text, features are extracted automatically
     q_type = classifier.classify(fact)
     print('True' if q_type == 'pos' else 'False')
-    estimated_val2 = float(check_fact(fact + " " + ran))
-    print('a Correct' if estimated_val2 == 1 else 'a Incorrect')
-    if is_q == 'yes' and not wh_question(user_input):
+    if is_q == 'yes' and wh_question(user_input) and len(e_ents)>0:
+        estimated_val2 = float(check_fact(fact + " " + ran))
+        print('a Correct' if estimated_val2 == 1 else 'a Incorrect')
+        return choose_ent(q_ents, e_ents, dep_text, a_score), True if estimated_val2 == 1 else False
+    else:
         # statement yes/no
         estimated_val = float(check_fact(user_input + " " + ran))
         print('q Correct' if estimated_val == 1 else 'q Incorrect')
+        estimated_val2 = float(check_fact(fact + " " + ran))
+        print('a Correct' if estimated_val2 == 1 else 'a Incorrect')
 
         if estimated_val2 == 1:  # estimated_val == estimated_val2 or
             return 'yes' if q_type == 'pos' else 'no', True
         else:
             return 'yes' if q_type == 'pos' else 'no', False
-    else:
-        return choose_ent(q_ents, e_ents, dep_text, a_score), True if estimated_val2 == 1 else False
 
 
 
