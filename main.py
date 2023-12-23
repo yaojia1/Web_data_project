@@ -2,7 +2,7 @@ import sys
 from entity_linking import *
 from FactChecking import *
 from llama_cpp import Llama
-model_path = "../models/llama-2-7b.Q4_K_M.gguf"
+model_path = "models/llama-2-7b.Q4_K_M.gguf"
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 nltk.download('maxent_ne_chunker')
