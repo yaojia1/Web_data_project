@@ -467,12 +467,12 @@ def fact_checking(user_input, fact, q_ents, e_ents, dep_text, a_score):
     print('True' if q_type == 'pos' else 'False')
     estimated_val2 = float(check_fact(fact + " " + ran))
     print('a Correct' if estimated_val2 == 1 else 'a Incorrect')
-    if is_q == 'yes':
+    if is_q == 'yes' and wh_question(user_input):
         # statement yes/no
         estimated_val = float(check_fact(user_input + " " + ran))
         print('q Correct' if estimated_val == 1 else 'q Incorrect')
 
-        if estimated_val == estimated_val2 or estimated_val2 == 1:
+        if estimated_val2 == 1:  # estimated_val == estimated_val2 or
             return 'yes' if q_type == 'pos' else 'no', True
         else:
             return 'yes' if q_type == 'pos' else 'no', False
